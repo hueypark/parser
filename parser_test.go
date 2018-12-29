@@ -2352,12 +2352,12 @@ func (s *testParserSuite) TestTimestampDiffUnit(c *C) {
 	expr := fields[0].Expr
 	f, ok := expr.(*ast.FuncCallExpr)
 	c.Assert(ok, IsTrue)
-	c.Assert(f.Args[0].(ast.ValueExpr).GetDatumString(), Equals, "MONTH")
+	c.Assert(f.Args[0].(*ast.TimeUnitExpr).Unit, Equals, ast.TimeUnitMonth)
 
 	expr = fields[1].Expr
 	f, ok = expr.(*ast.FuncCallExpr)
 	c.Assert(ok, IsTrue)
-	c.Assert(f.Args[0].(ast.ValueExpr).GetDatumString(), Equals, "MONTH")
+	c.Assert(f.Args[0].(*ast.TimeUnitExpr).Unit, Equals, ast.TimeUnitMonth)
 
 	// Test Illegal TimeUnit for TimestampDiff
 	table := []testCase{
@@ -2673,9 +2673,9 @@ func (s *testParserSuite) TestWindowFunctions(c *C) {
 }
 
 type windowFrameBoundChecker struct {
-	fb         *ast.FrameBound
-	exprRc     int
-	timeUnitRc int
+	fb     *ast.FrameBound
+	exprRc int
+	unit   ast.TimeUnitType
 }
 
 // Enter implements ast.Visitor interface.
@@ -2693,10 +2693,9 @@ func (wfc *windowFrameBoundChecker) Leave(inNode ast.Node) (node ast.Node, ok bo
 	}
 	if wfc.fb != nil {
 		if inNode == wfc.fb.Expr {
-			wfc.exprRc += 1
-		} else if inNode == wfc.fb.Unit {
-			wfc.timeUnitRc += 1
+			wfc.exprRc++
 		}
+		wfc.unit = wfc.fb.Unit
 	}
 	return inNode, true
 }
@@ -2707,13 +2706,13 @@ func (s *testParserSuite) TestVisitFrameBound(c *C) {
 	parser := New()
 	parser.EnableWindowFunc(true)
 	table := []struct {
-		s          string
-		exprRc     int
-		timeUnitRc int
+		s      string
+		exprRc int
+		unit   ast.TimeUnitType
 	}{
-		{`SELECT AVG(val) OVER (RANGE INTERVAL '2:30' MINUTE_SECOND PRECEDING) FROM t;`, 1, 1},
-		{`SELECT AVG(val) OVER (RANGE 5 PRECEDING) FROM t;`, 1, 0},
-		{`SELECT AVG(val) OVER () FROM t;`, 0, 0},
+		{`SELECT AVG(val) OVER (RANGE INTERVAL '2:30' MINUTE_SECOND PRECEDING) FROM t;`, 1, ast.TimeUnitMinuteSecond},
+		{`SELECT AVG(val) OVER (RANGE 5 PRECEDING) FROM t;`, 1, ast.TimeUnitInvalid},
+		{`SELECT AVG(val) OVER () FROM t;`, 0, ast.TimeUnitInvalid},
 	}
 	for _, t := range table {
 		stmt, err := parser.ParseOneStmt(t.s, "", "")
@@ -2721,7 +2720,7 @@ func (s *testParserSuite) TestVisitFrameBound(c *C) {
 		checker := windowFrameBoundChecker{}
 		stmt.Accept(&checker)
 		c.Assert(checker.exprRc, Equals, t.exprRc)
-		c.Assert(checker.timeUnitRc, Equals, t.timeUnitRc)
+		c.Assert(checker.unit, Equals, t.unit)
 	}
 
 }

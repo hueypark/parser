@@ -1521,7 +1521,7 @@ type FrameBound struct {
 	Expr      ExprNode
 	// `Unit` is used to indicate the units in which the `Expr` should be interpreted.
 	// For example: '2:30' MINUTE_SECOND.
-	Unit ExprNode
+	Unit TimeUnitType
 }
 
 // Restore implements Node interface.
@@ -1542,13 +1542,6 @@ func (n *FrameBound) Accept(v Visitor) (Node, bool) {
 			return n, false
 		}
 		n.Expr = node.(ExprNode)
-	}
-	if n.Unit != nil {
-		node, ok := n.Unit.Accept(v)
-		if !ok {
-			return n, false
-		}
-		n.Unit = node.(ExprNode)
 	}
 	return v.Leave(n)
 }
